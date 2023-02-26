@@ -21,12 +21,11 @@ from aido_schemas import (
 from solution.connections import get_motor_left_matrix, get_motor_right_matrix
 from solution.preprocessing import preprocess
 
-
 # TODO edit this Config class ! Play with different gain and const values
 @dataclass
 class BraitenbergAgentConfig:
-    gain: float = 0.9
-    const: float = 0.0
+    gain: float = 0.30
+    const: float = 0.30
 
 
 class BraitenbergAgent:
@@ -49,6 +48,7 @@ class BraitenbergAgent:
         self.r_min = math.inf
         self.left = None
         self.right = None
+        self.cnt = 0
 
     def on_received_seed(self, data: int):
         np.random.seed(data)
@@ -60,11 +60,12 @@ class BraitenbergAgent:
         camera: JPGImage = data.camera
         if self.rgb is None:
             context.info("received first observations")
-        self.rgb = dcu.bgr_from_rgb(dcu.bgr_from_jpg(camera.jpg_data))
+        self.rgb = dcu.rgb_from_bgr(dcu.bgr_from_jpg(camera.jpg_data))
 
-    def compute_commands(self) -> Tuple[float, float]:
+    def compute_commands(self, context: Context) -> Tuple[float, float]:
         """Returns the commands (pwm_left, pwm_right)"""
         # If we have not received any image, we don't move
+    
         if self.rgb is None:
             return 0.0, 0.0
 
@@ -76,6 +77,7 @@ class BraitenbergAgent:
 
         # let's take only the intensity of RGB
         P = preprocess(self.rgb)
+
         # now we just compute the activation of our sensors
         l = float(np.sum(P * self.left))
         r = float(np.sum(P * self.right))
@@ -89,6 +91,7 @@ class BraitenbergAgent:
         self.l_min = min(l, self.l_min)
         self.r_min = min(r, self.r_min)
 
+
         # now rescale from 0 to 1
         ls = rescale(l, self.l_min, self.l_max)
         rs = rescale(r, self.r_min, self.r_max)
@@ -97,11 +100,25 @@ class BraitenbergAgent:
         const = self.config.const
         pwm_left = const + ls * gain
         pwm_right = const + rs * gain
+        
+
+        # in case the duck is in the center (its significance is equall in respect to left and the right motor matrix)
+        # if this additional functionality isn't used then the bot will increase the speed of both motors equally, going straight to the duck
+        # The wiggling should be used only when this case is hit. Moreover when there aren't any obstacles affecting the motors' speed then this trick can be avoided
+        # Why does it work? It gives the bot a chance to choose whether to go around the left of the right side of the obstacle, because one of the motor matrices will have a bigger influence during this wiggling mechanic.
+        if abs(pwm_left - pwm_right) < 0.1 and pwm_left > const + 0.01:
+            if self.cnt %16 < 8:
+                pwm_right/=4
+            else:
+                pwm_left/=4
+        self.cnt += 1
+
+        context.info(f"pwm_left {pwm_left} and pwm_right {pwm_right}")
 
         return pwm_left, pwm_right
 
     def on_received_get_commands(self, context: Context, data: GetCommands):
-        pwm_left, pwm_right = self.compute_commands()
+        pwm_left, pwm_right = self.compute_commands(context)
 
         col = RGB(0.0, 0.0, 1.0)
         col_left = RGB(pwm_left, pwm_left, 0.0)
