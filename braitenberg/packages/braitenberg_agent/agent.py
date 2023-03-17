@@ -110,7 +110,7 @@ class BraitenbergAgent:
             if self.cnt %16 < 8:
                 pwm_right/=4
             else:
-                pwm_left/=4
+                pwm_left/=4 
         self.cnt += 1
 
         context.info(f"pwm_left {pwm_left} and pwm_right {pwm_right}")
