@@ -24,12 +24,28 @@ def PIDController(
         e_int:      current integral error (automatically becomes prev_int_y at next iteration).
     """
     
-  
 
-    # These are random values, replace with your implementation of a PID controller in here
-    omega = np.random.uniform(-8.0, 8.0)
-    e = np.random.random()
-    e_int = np.random.random()
-    # ---
+    k_prop = 1.5
+    k_int = 0.0
+    k_d = 7.0
+
+    e = y_ref - y_hat
+
+    e_d = (e - prev_e_y)/delta_t
+    e_prop = e
+    e_int = prev_int_y + e*delta_t
+
+    e_int = max(min(e_int,2),-2)
+
+    omega = k_prop*e_prop + k_int*e_int + k_d*e_d
+
+    print(f"y_ref {y_ref}, y_hat {y_hat}, omega {omega}")
+
+
+    # clamped_omega = max(min(omega, 5),-5)
+    # is_saturated = clamped_omega != omega
+    # is_making_saturation_worse = omega * e > 0
+    # if is_saturated and is_making_saturation_worse:
+    #     e_int = prev_int_y
     
     return v_0, omega, e, e_int
